@@ -46,3 +46,5 @@ STATIC_PATHS = ['images', 'extra']
 EXTRA_PATH_METADATA = {
         'extra/CNAME': {'path': 'CNAME'},
         }
+
+MD_EXTENSIONS = ['fenced_code', 'codehilite(css_class=highlight, linenums=True)', 'extra']
