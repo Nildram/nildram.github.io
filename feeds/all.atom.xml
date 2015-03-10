@@ -121,7 +121,7 @@ Options: {}
 &lt;/ol&gt;
 &lt;h3&gt;Getting our arguments into memory&lt;/h3&gt;
 &lt;p&gt;First we need to get the arguments to the &lt;code&gt;execve&lt;/code&gt; call into memory. The first argument will point to the string &lt;code&gt;"/bin/pwn"&lt;/code&gt;. We can just use a &lt;code&gt;NULL&lt;/code&gt; for the second and third parameters.&lt;/p&gt;
-&lt;p&gt;We could just pass the parameters in on the stack as arguments to the program, but the address of the arguments would be liable to change even without ASLR. Intead, we will pass them in as part of our buffer and arrange them in memory ourselves. We will use the &lt;code&gt;.data&lt;/code&gt; section to store these parameters:&lt;/p&gt;
+&lt;p&gt;We could just pass the parameters in on the stack as arguments to the program, but that wouldn't be so interesting. Intead, we will pass them in as part of our buffer and arrange them in memory ourselves. We will use the &lt;code&gt;.data&lt;/code&gt; section to store these parameters:&lt;/p&gt;
 &lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
 2&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;user@protostar:~$ objdump -D /opt/protostar/bin/stack6 | grep __data
 08049710 &amp;lt;__data_start&amp;gt;:

@@ -173,7 +173,7 @@ Options: {}
 </ol>
 <h3>Getting our arguments into memory</h3>
 <p>First we need to get the arguments to the <code>execve</code> call into memory. The first argument will point to the string <code>"/bin/pwn"</code>. We can just use a <code>NULL</code> for the second and third parameters.</p>
-<p>We could just pass the parameters in on the stack as arguments to the program, but the address of the arguments would be liable to change even without ASLR. Intead, we will pass them in as part of our buffer and arrange them in memory ourselves. We will use the <code>.data</code> section to store these parameters:</p>
+<p>We could just pass the parameters in on the stack as arguments to the program, but that wouldn't be so interesting. Intead, we will pass them in as part of our buffer and arrange them in memory ourselves. We will use the <code>.data</code> section to store these parameters:</p>
 <table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
 2</pre></div></td><td class="code"><div class="highlight"><pre>user@protostar:~$ objdump -D /opt/protostar/bin/stack6 | grep __data
 08049710 &lt;__data_start&gt;:
